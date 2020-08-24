@@ -1,6 +1,6 @@
 {
-  "name": "janus-phone-kit",
-  "version": "0.1.0",
+  "name": "janus-phone-kit-firedome-fork",
+  "version": "0.2-alpha",
   "scripts": {
     "serve": "npm run docs:dev",
     "build": "bili",
