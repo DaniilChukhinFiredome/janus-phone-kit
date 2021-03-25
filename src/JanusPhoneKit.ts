@@ -12,7 +12,6 @@ type JanusPhoneKitOptions = {
   stunServers?: StunServer[],
   stream?: MediaStream,
   screenShareStream?: MediaStream,
-  mediaConstraints?: {},
 }
 const defaultOptions: JanusPhoneKitOptions = {
   roomId: null,
@@ -20,7 +19,6 @@ const defaultOptions: JanusPhoneKitOptions = {
   stunServers: [{urls: "stun:stun.l.google.com:19302"}],
   stream: null,
   screenShareStream: null,
-  mediaConstraints: null,
 }
 
 export default class JanusPhoneKit extends EventEmitter {
@@ -45,9 +43,9 @@ export default class JanusPhoneKit extends EventEmitter {
   private screenSharePlugin = null
 
   /**
-   * Media constraints for audio, video, screen share tracks
+   * Simulcast settings defining video quality for each simulcast substream
    */
-  private mediaConstraints = null
+  private simulcastSettings = null
 
   isConnected = false
 
@@ -73,8 +71,8 @@ export default class JanusPhoneKit extends EventEmitter {
     this.session.offAll();
   }
 
-  public joinRoom({roomId, displayName = '', mediaConstraints, sessionInfo, state}) {
-    this.mediaConstraints = mediaConstraints;
+  public joinRoom({roomId, displayName = '', simulcastSettings, sessionInfo, state}) {
+    this.simulcastSettings = simulcastSettings;
     this.sessionInfo = sessionInfo;
     if (!this.options.url) {
       throw new Error('Could not create websocket connection because url parameter is missing')
@@ -92,7 +90,7 @@ export default class JanusPhoneKit extends EventEmitter {
       this.session.receive(JSON.parse(event.data))
     });
 
-    this.registerSocketOpenHandler(displayName, mediaConstraints, sessionInfo, state)
+    this.registerSocketOpenHandler(displayName, sessionInfo, state)
     this.registerSocketCloseHandler()
 
     this.websocket.onerror = () => {
@@ -138,11 +136,11 @@ export default class JanusPhoneKit extends EventEmitter {
     this.screenSharePlugin?.setBitrate(bitrate);
   }
 
-  async changePublisherStream(newSource) {
-    return this.videoRoomPlugin?.changePublisherStream(newSource);
+  async changePublisherStream(stream) {
+    return this.videoRoomPlugin?.changePublisherStream(stream);
   }
 
-  public async startScreenShare() {
+  public async startScreenShare(stream) {
     if (!this.session.connected || this.screenSharePlugin && this.screenSharePlugin.rtcConnection) {
       return
     }
@@ -151,9 +149,9 @@ export default class JanusPhoneKit extends EventEmitter {
       roomId: this.options.roomId,
       videoRoomPlugin: this.videoRoomPlugin,
       stunServers: this.options.stunServers,
-      stream: this.options.screenShareStream,
+      stream,
       sessionInfo: this.sessionInfo,
-      mediaConstraints: this.mediaConstraints,
+      simulcastSettings: this.simulcastSettings.screenShareSimulcastSettings,
     });
 
     try {
@@ -176,7 +174,7 @@ export default class JanusPhoneKit extends EventEmitter {
     await this.videoRoomPlugin?.syncParticipants();
   }
 
-  private registerSocketOpenHandler(displayName, mediaConstraints, sessionInfo, state) {
+  private registerSocketOpenHandler(displayName, sessionInfo, state) {
     this.websocket.addEventListener('open', async () => {
       const unload = e => {
         this.websocket.close()
@@ -196,7 +194,7 @@ export default class JanusPhoneKit extends EventEmitter {
         displayName: displayName,
         roomId: this.options.roomId,
         stunServers: this.options.stunServers,
-        mediaConstraints,
+        simulcastSettings: this.simulcastSettings.videoSimulcastSettings,
         sessionInfo,
         stream: this.options.stream,
         state,
